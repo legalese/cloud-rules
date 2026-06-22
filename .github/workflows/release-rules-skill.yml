@@ -23,14 +23,14 @@ jobs:
         with:
           fetch-depth: 0 # Get full history for versioning
 
-      - name: Get version from commits
+      - name: Get version
         id: version
         run: |
-          # Count commits to the plugin/skill paths for versioning
-          COMMIT_COUNT=$(git log --oneline -- .claude-plugin/ .mcp.json skills/ | wc -l | tr -d ' ')
-          # Short hash of the latest commit touching those paths
+          # Build number from the Actions run → 0.1.{build}
+          BUILD="${{ github.run_number }}"
+          # Short hash of the latest commit touching the plugin/skill paths
           SHORT_SHA=$(git log -1 --format=%h -- .claude-plugin/ .mcp.json skills/)
-          VERSION="v0.1.${COMMIT_COUNT}"
+          VERSION="v0.1.${BUILD}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${VERSION}-${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "Release version will be: ${VERSION}-${SHORT_SHA}"
