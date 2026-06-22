@@ -1,0 +1,175 @@
+name: Release Rules Plugin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".claude-plugin/**"
+      - ".mcp.json"
+      - "skills/**"
+      - "README.md"
+  workflow_dispatch:
+
+jobs:
+  release-plugin:
+    name: Build and Release Rules Plugin
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Get full history for versioning
+
+      - name: Get version from commits
+        id: version
+        run: |
+          # Count commits to the plugin/skill paths for versioning
+          COMMIT_COUNT=$(git log --oneline -- .claude-plugin/ .mcp.json skills/ | wc -l | tr -d ' ')
+          # Short hash of the latest commit touching those paths
+          SHORT_SHA=$(git log -1 --format=%h -- .claude-plugin/ .mcp.json skills/)
+          VERSION="v0.1.${COMMIT_COUNT}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${VERSION}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "Release version will be: ${VERSION}-${SHORT_SHA}"
+
+      - name: Update plugin version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Bump the plugin manifest version
+          jq --arg ver "${VERSION#v}" '.version = $ver' .claude-plugin/plugin.json > .claude-plugin/plugin.json.tmp
+          mv .claude-plugin/plugin.json.tmp .claude-plugin/plugin.json
+
+          # Stamp the version onto the rules plugin entry in the marketplace
+          # manifest (leave the l4-computational-law advert, which tracks the
+          # l4-ide repo, untouched).
+          jq --arg ver "${VERSION#v}" '
+            .plugins |= map(if .name == "rules" then .version = $ver else . end)
+          ' .claude-plugin/marketplace.json > .claude-plugin/marketplace.json.tmp
+          mv .claude-plugin/marketplace.json.tmp .claude-plugin/marketplace.json
+
+      - name: Create plugin packages
+        run: |
+          # Remove existing packages if present
+          rm -f legalese-rules.skill rules-plugin.zip
+
+          # Skill-only package (just the SKILL.md folder)
+          (
+            cd skills/legalese-rules
+            zip -r "$GITHUB_WORKSPACE/legalese-rules.skill" \
+              . \
+              -x "*.DS_Store"
+          )
+
+          # Full plugin package (manifest + discovery MCP + skill + README)
+          zip -r rules-plugin.zip \
+            .claude-plugin/ \
+            .mcp.json \
+            skills/ \
+            README.md \
+            -x "*.DS_Store"
+
+          # Verify packages
+          echo "=== Skill Package ==="
+          ls -lh legalese-rules.skill
+          echo ""
+          echo "=== Plugin Package ==="
+          ls -lh rules-plugin.zip
+          echo ""
+          echo "Plugin package contents:"
+          unzip -l rules-plugin.zip | head -30
+
+      - name: Check if release exists
+        id: check_release
+        run: |
+          if gh release view ${{ steps.version.outputs.tag }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.version.outputs.tag }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.version.outputs.tag }} does not exist"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Legalese Cloud Rules Plugin ${{ steps.version.outputs.version }}"
+          body: |
+            ## Legalese Cloud Rules — discovery skill + rules MCP gateway
+
+            This release contains the gateway plugin for Claude Code / claude.ai:
+            a skill that primes the model on _when_ to reach for your account's
+            deployed rules, plus the account-wide rules MCP server
+            (`https://mcp.legalese.cloud`, org resolved from your sign-in).
+
+            ### Installation Methods
+
+            **Via Marketplace (Recommended):**
+            ```
+            /plugin marketplace add legalese/cloud-rules
+            /plugin install rules@legalese-cloud
+            ```
+
+            The same marketplace also advertises the **L4 authoring plugin**:
+            ```
+            /plugin install l4-computational-law@legalese-cloud
+            ```
+
+            **Manual Plugin Installation:**
+            1. Download `rules-plugin.zip`
+            2. Extract to your plugins directory
+            3. Restart Claude Code
+
+            **Skill-Only Installation:**
+            1. Download `legalese-rules.skill`
+            2. Extract into `~/.claude/skills/legalese-rules/` or
+               `<project>/.claude/skills/legalese-rules/`
+
+            ### What's Included
+
+            - **Discovery skill**: tells the agent when a question should be
+              answered from your deployed rules rather than reasoned out
+            - **Rules MCP**: the account-wide `mcp.legalese.cloud` server (org
+              from auth, no token baked in — OAuth on first use)
+
+            ---
+
+            **Version:** ${{ steps.version.outputs.version }}
+            **Commit:** ${{ github.sha }}
+          files: |
+            legalese-rules.skill
+            rules-plugin.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update existing release
+        if: steps.check_release.outputs.exists == 'true'
+        run: |
+          echo "Updating existing release ${{ steps.version.outputs.tag }}"
+          gh release upload ${{ steps.version.outputs.tag }} legalese-rules.skill rules-plugin.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Release summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Skill Package:** legalese-rules.skill ($(ls -lh legalese-rules.skill | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
+          echo "- **Plugin Package:** rules-plugin.zip ($(ls -lh rules-plugin.zip | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "/plugin marketplace add legalese/cloud-rules" >> $GITHUB_STEP_SUMMARY
+          echo "/plugin install rules@legalese-cloud" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View the release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
