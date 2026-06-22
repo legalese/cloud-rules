@@ -1,0 +1,17 @@
+{
+  "name": "legalese-cloud",
+  "owner": {
+    "name": "Legalese Cloud"
+  },
+  "plugins": [
+    {
+      "name": "rules",
+      "description": "Find and run your account's deployed legal & policy decision rules on Legalese Cloud. Discovers the right rule on demand — no need to preload every deployment as a tool.",
+      "source": {
+        "source": "github",
+        "repo": "legalese/cloud-rules",
+        "path": "."
+      }
+    }
+  ]
+}
