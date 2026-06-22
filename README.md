@@ -16,6 +16,16 @@ The plugin registers the account-wide rules MCP server
 baked in; OAuth runs on first use) plus a skill that primes the model on _when_
 to use it.
 
+## Also in this marketplace: write L4
+
+The same marketplace advertises the **L4 authoring plugin** (from
+[`legalese/l4-ide`](https://github.com/legalese/l4-ide)) — expert guidance for
+formalising legal text as typed, executable, verifiable rules:
+
+```
+/plugin install l4-computational-law@legalese-cloud
+```
+
 ## Other harnesses
 
 Use the L4 VS Code extension's **Install Skills Marketplace** to add the rules to

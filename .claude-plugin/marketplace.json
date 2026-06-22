@@ -12,6 +12,15 @@
         "repo": "legalese/cloud-rules",
         "path": "."
       }
+    },
+    {
+      "name": "l4-computational-law",
+      "description": "L4 programming language for computational law — encode contracts, regulations, and policies as executable, testable, verifiable programs.",
+      "source": {
+        "source": "github",
+        "repo": "legalese/l4-ide",
+        "path": "."
+      }
     }
   ]
 }
