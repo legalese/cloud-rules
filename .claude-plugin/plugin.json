@@ -1,5 +1,6 @@
 {
   "name": "rules",
+  "displayName": "Legalese Cloud Rules",
   "version": "1.0.0",
   "description": "Find and run your account's deployed legal & policy decision rules on Legalese Cloud. Discovers the right rule on demand — no need to preload every deployment as a tool."
 }
